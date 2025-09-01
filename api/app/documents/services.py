@@ -8,7 +8,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.chains import RetrievalQA
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
-from app.settings import settings
+from app.core.config import settings
 
 class DocumentService:
     def __init__(self) -> None:
