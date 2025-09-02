@@ -1,16 +1,12 @@
 from pydantic import BaseModel
 
-class UserCreate(BaseModel):
-    username: str
-    password: str
-
 class Token(BaseModel):
     access_token: str
-    token_type: str
+    token_type: str = "bearer"
 
-class UserResponse(BaseModel):
-    id: int
-    username: str
+class TokenRefresh(BaseModel):
+    refresh_token: str
 
-    class Config:
-        from_attributes = True
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"

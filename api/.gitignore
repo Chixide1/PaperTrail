@@ -14,3 +14,5 @@ wheels/
 uploads/
 .vscode/
 chroma
+*.sqlite
+*.db

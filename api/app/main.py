@@ -10,7 +10,7 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     yield
 
-app = FastAPI(title="Smart Document Q&A API")
+app = FastAPI(title="Smart Document Q&A API", lifespan=lifespan)
 
 app.include_router(router)
 app.include_router(auth_router)
