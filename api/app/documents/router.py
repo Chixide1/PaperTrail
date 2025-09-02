@@ -1,9 +1,8 @@
-from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
-from fastapi.security import OAuth2PasswordBearer
 from app.core.logging import logger
 from app.documents.models import QueryRequest, QueryResponse, UploadResponse
-from app.documents.services import DocumentService, get_document_service
+from app.documents.services import DocumentService
+from app.core.dependencies import get_document_service
 
 router = APIRouter()
 

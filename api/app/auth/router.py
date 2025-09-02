@@ -4,25 +4,17 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from app.auth.schema import Token
 from app.auth.services import UserService
-from app.core.dependencies import get_user_service
+from app.core.dependencies import get_current_user, get_user_service
 from app.core.security import (
     ACCESS_TOKEN_EXPIRE_MINUTES, 
     REFRESH_TOKEN_EXPIRE_DAYS, 
     create_jwt_token, 
-    hash_password,
-    oauth2_scheme
+    hash_password
 )
 
 router = APIRouter(
     prefix="/auth"
 )
-
-def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    user_svc: UserService = Depends(get_user_service)
-) -> str:
-    """Dependency to get current user from access token"""
-    return user_svc.verify_access_token(token)
 
 @router.post("/register")
 def register(

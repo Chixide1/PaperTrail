@@ -75,6 +75,3 @@ class DocumentService:
         
         result = qa_chain({"query": question})
         return result["result"]
-    
-def get_document_service():
-    return DocumentService()
