@@ -1,10 +1,12 @@
+import os
+from app.core.config import setup_langsmith_env
+setup_langsmith_env()
 from operator import itemgetter
 import shutil
-import os
+from app.core.config import settings
 import uuid
-from typing import Optional, List
+from typing import Optional, cast
 from fastapi import UploadFile
-from langchain_community.document_loaders import PyPDFLoader
 from langchain_unstructured import UnstructuredLoader
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
@@ -14,14 +16,14 @@ from langchain_community.chat_message_histories import SQLChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from pydantic import SecretStr
 from app.core.database import Message, SessionLocal
-from app.core.config import settings
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_openai import ChatOpenAI
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import BaseMessage
-from langchain_community.vectorstores.utils import filter_complex_metadata  # Add this import
+from langchain_community.vectorstores.utils import filter_complex_metadata #type: ignore
+from typing import Dict
+from langchain.schema.runnable import RunnableSerializable
 
 
 class DocumentService:
@@ -87,27 +89,30 @@ class DocumentService:
             session_id = str(uuid.uuid4())
         
         retriever = self.vector_store.as_retriever(
-            search_kwargs={"k": 5}
+            search_kwargs={"k": 3}
         )
 
-        prompt = ChatPromptTemplate.from_messages([
+        prompt = ChatPromptTemplate.from_messages([ #type: ignore
             ("system", "You are a helpful assistant. Answer questions based on the provided context if it exists. If you don't know the answer, just say that you don't know, don't try to make up an answer. Answer in a concise manner."),
             MessagesPlaceholder(variable_name="history"),
             ("human", "Context: {context}, question: {input}"),
         ])
         
         # Create retrieval chain
-        retrieval_chain = (
-        {
-            "context": itemgetter("input") | retriever | format_docs,
-            "input": itemgetter("input"),
-            "history": itemgetter("history"),
-        }
-        | prompt
-        | self.llm
-        | StrOutputParser()
-    )
-        
+        retrieval_chain = cast(
+            RunnableSerializable[Dict[str, str], str],
+            (
+                {
+                    "context": itemgetter("input") | retriever | format_docs,
+                    "input": itemgetter("input"),
+                    "history": itemgetter("history"),
+                }
+                | prompt
+                | self.llm
+                | StrOutputParser()
+            )
+        )
+                
         # Wrap with message history
         chain_with_history = RunnableWithMessageHistory(
             retrieval_chain,
@@ -116,12 +121,12 @@ class DocumentService:
             history_messages_key="history",
         )
 
-        result = chain_with_history.invoke(
+        result = chain_with_history.invoke( # type: ignore
             {"input": question},
             config={"configurable": {"session_id": session_id}}
         )
         
-        return result
+        return cast(str,result)
 
     def clear_chat_history(self, session_id: str) -> bool:
         """Clear chat history for a specific session"""
@@ -129,7 +134,7 @@ class DocumentService:
         history.clear()
         return True
 
-    def get_all_sessions(self) -> List[str]:
+    def get_all_sessions(self) -> list[str]:
         """Get all unique session IDs from LangChain's message store"""
         from sqlalchemy import create_engine, text
         
@@ -147,7 +152,7 @@ class LimitedSQLChatMessageHistory(SQLChatMessageHistory):
         self.limit = limit
 
     @property
-    def messages(self) -> List[BaseMessage]:  # type: ignore[override]
+    def messages(self) -> list[BaseMessage]:  # type: ignore[override]
         """Retrieve the last N messages from db using ORM style"""
         with SessionLocal() as session:
             result = (
@@ -158,7 +163,7 @@ class LimitedSQLChatMessageHistory(SQLChatMessageHistory):
                 .all()
             )
             
-            messages = []
+            messages: list[BaseMessage] = []
             for record in result:
                 # Use the converter to convert from SQL model to BaseMessage
                 message = self.converter.from_sql_model(record)

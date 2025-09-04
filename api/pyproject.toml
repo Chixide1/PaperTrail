@@ -1,5 +1,5 @@
 [project]
-name = "papertrail"
+name = "Papertrail"
 version = "0.1.0"
 description = "Smart Document Q&A API"
 readme = "README.md"
@@ -11,6 +11,7 @@ dependencies = [
     "langchain-huggingface>=0.3.1",
     "langchain-openai>=0.3.32",
     "langchain-unstructured>=0.1.5",
+    "langsmith>=0.4.21",
     "passlib>=1.7.4",
     "pydantic-settings>=2.10.1",
     "pyjwt>=2.10.1",
