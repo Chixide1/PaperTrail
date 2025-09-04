@@ -5,7 +5,9 @@ from app.documents.models import QueryRequest, QueryResponse, UploadResponse, Ch
 from app.documents.services import DocumentService
 from app.core.dependencies import get_document_service
 
-router = APIRouter()
+router = APIRouter(
+    tags=["Documents"],
+)
 
 @router.post("/upload")
 async def upload_docs(
@@ -49,7 +51,7 @@ async def query_doc(
             detail="An error occurred while querying the LLM"
         )
 
-@router.get("/history", response_model=ChatHistoryResponse)
+@router.get("/history")
 async def get_history(
     session_id: Optional[str] = Query(None, description="Filter by session ID"),
     limit: int = Query(50, description="Maximum number of messages to return"),
@@ -59,7 +61,8 @@ async def get_history(
     Get chat history, optionally filtered by session ID
     """
     try:
-        return doc_service.get_chat_history(session_id=session_id, limit=limit)
+        history = doc_service.get_session_history(session_id, limit)
+        return history.messages
     except Exception as e:
         logger.error(e, exc_info=True)
         raise HTTPException(

@@ -6,3 +6,5 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger("PaperTrail")
+# Set up logging for SQLAlchemy
+logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)

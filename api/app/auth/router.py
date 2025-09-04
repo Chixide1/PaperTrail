@@ -13,7 +13,8 @@ from app.core.security import (
 )
 
 router = APIRouter(
-    prefix="/auth"
+    prefix="/auth",
+    tags=["Auth"]
 )
 
 @router.post("/register")

@@ -4,8 +4,7 @@ from datetime import datetime
 
 class QueryRequest(BaseModel):
     question: str
-    document_name: str
-    session_id: Optional[str] = None  # Add session support
+    session_id: Optional[str] = None
 
 class QueryResponse(BaseModel):
     answer: str
