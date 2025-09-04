@@ -3,11 +3,10 @@ from sqlalchemy import DateTime, create_engine
 from sqlalchemy.orm import sessionmaker, MappedAsDataclass, DeclarativeBase
 from sqlalchemy import Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
-
-SQLALCHEMY_DATABASE_URL = "sqlite:///./db.sqlite"
+from app.core.config import settings
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
+    settings.SQLALCHEMY_DATABASE_URL,
     connect_args={"check_same_thread": False}
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
