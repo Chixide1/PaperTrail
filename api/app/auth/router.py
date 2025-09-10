@@ -113,4 +113,4 @@ def change_password(
 
 @router.get("/protected")
 def protected_route(current_user: str = Depends(get_current_user)):
-    return {"message": f"Hello, {current_user}!"}
+    return {"message": "Hello, you are authenticated", "user": current_user}

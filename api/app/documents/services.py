@@ -1,14 +1,14 @@
 import os
+from app.shared.utils import format_docs_structured
 from app.core.config import setup_langsmith_env
 setup_langsmith_env()
 from operator import itemgetter
 import shutil
 from app.core.config import settings
 import uuid
-from typing import Optional, cast
+from typing import cast
 from fastapi import UploadFile
 from langchain_unstructured import UnstructuredLoader
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import ChatOpenAI
@@ -24,25 +24,19 @@ from langchain_core.messages import BaseMessage
 from langchain_community.vectorstores.utils import filter_complex_metadata #type: ignore
 from typing import Dict
 from langchain.schema.runnable import RunnableSerializable
-
+from langchain_core.runnables import chain
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 class DocumentService:
-    def __init__(self) -> None:
-        self.embeddings = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2"
-        )
-
-        self.vector_store = Chroma(
-            persist_directory=settings.CHROME_DIR,
-            embedding_function=self.embeddings
-        )
-
-        self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
-            length_function=len,
-        )
-
+    def __init__(
+            self, db: Session,
+            vector_store: Chroma,
+            text_splitter: RecursiveCharacterTextSplitter
+    ):
+        self.db = db
+        self.vector_store = vector_store
+        self.text_splitter = text_splitter
         self.llm = ChatOpenAI(
             api_key=SecretStr(settings.OPENAI_KEY), 
             streaming=True
@@ -83,19 +77,33 @@ class DocumentService:
             processed_files.append(file.filename)
         
         return processed_files
-    
-    def query_document(self, question: str, session_id: Optional[str] = None) -> str:
+
+    def query_document(self, question: str, session_id: str | None = None) -> str:
         if not session_id:
             session_id = str(uuid.uuid4())
         
-        retriever = self.vector_store.as_retriever(
-            search_kwargs={"k": 3}
-        )
+            
+        @chain
+        def retriever(query: str):
+            docs_and_scores = self.vector_store.similarity_search_with_score(query)
+
+            docs: list[Document] = []
+
+            for doc, score in docs_and_scores:
+                doc.metadata["score"] = score #type: ignore
+                docs.append(doc)
+
+            return docs
 
         prompt = ChatPromptTemplate.from_messages([ #type: ignore
-            ("system", "You are a helpful assistant. Answer questions based on the provided context if it exists. If you don't know the answer, just say that you don't know, don't try to make up an answer. Answer in a concise manner."),
+            (
+                "system",
+                "You are a helpful assistant. Answer questions based on the provided context if it exists. "
+                "If you don't know the answer, just say that you don't know, don't try to make up an answer. "
+                # "Answer in a concise manner."
+            ),
             MessagesPlaceholder(variable_name="history"),
-            ("human", "Context: {context}, question: {input}"),
+            ("human", "Context: \n\n{context}. \n\nQuestion: \n\n{input}"),
         ])
         
         # Create retrieval chain
@@ -103,7 +111,7 @@ class DocumentService:
             RunnableSerializable[Dict[str, str], str],
             (
                 {
-                    "context": itemgetter("input") | retriever | format_docs,
+                    "context": itemgetter("input") | retriever | format_docs_structured,
                     "input": itemgetter("input"),
                     "history": itemgetter("history"),
                 }
@@ -134,17 +142,13 @@ class DocumentService:
         history.clear()
         return True
 
-    def get_all_sessions(self) -> list[str]:
+    def get_all_sessions(self):
         """Get all unique session IDs from LangChain's message store"""
-        from sqlalchemy import create_engine, text
-        
-        # SQL logging already enabled here
-        engine = create_engine("sqlite:///./db.sqlite", echo=True)
-        
-        with engine.connect() as conn:
-            query = text("SELECT DISTINCT session_id FROM message_store")
-            result = conn.execute(query)
-            return [row[0] for row in result.fetchall()]
+
+        stmt = select(Message.session_id).distinct()
+        ids = self.db.scalars(stmt).all()
+        return cast(list[str],ids)
+
         
 class LimitedSQLChatMessageHistory(SQLChatMessageHistory):
     def __init__(self, session_id: str, connection: str, limit: int = 5):
@@ -154,22 +158,19 @@ class LimitedSQLChatMessageHistory(SQLChatMessageHistory):
     @property
     def messages(self) -> list[BaseMessage]:  # type: ignore[override]
         """Retrieve the last N messages from db using ORM style"""
+
         with SessionLocal() as session:
-            result = (
-                session.query(Message)
-                .filter(Message.session_id == self.session_id)
-                .order_by(Message.id.desc())
-                .limit(self.limit)
-                .all()
+            stmt = (
+                select(Message).where(Message.session_id == self.session_id)
+                .order_by(Message.id.desc()).limit(self.limit)
             )
             
+            results = session.scalars(stmt).all()
             messages: list[BaseMessage] = []
-            for record in result:
+
+            for record in results:
                 # Use the converter to convert from SQL model to BaseMessage
                 message = self.converter.from_sql_model(record)
                 messages.append(message)
             
             return messages
-
-def format_docs(docs: list[Document]):
-    return "\n\n".join([doc.page_content for doc in docs])

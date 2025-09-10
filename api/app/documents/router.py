@@ -1,12 +1,12 @@
-from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, Query
 from app.core.logging import logger
-from app.documents.models import QueryRequest, QueryResponse, UploadResponse, ChatHistoryResponse
+from app.documents.models import QueryRequest, UploadResponse
 from app.documents.services import DocumentService
-from app.core.dependencies import get_document_service
+from app.core.dependencies import get_current_user, get_document_service
 
 router = APIRouter(
     tags=["Documents"],
+    dependencies=[Depends(get_current_user)]
 )
 
 @router.post("/upload")
@@ -33,7 +33,7 @@ async def upload_docs(
 @router.post("/ask")
 async def query_doc(
     request: QueryRequest,
-    doc_svc: DocumentService = Depends(get_document_service)
+    doc_svc: DocumentService = Depends(get_document_service),
 ):
     """
     Give LLM a query that will use the specified document as context
@@ -53,7 +53,7 @@ async def query_doc(
 
 @router.get("/history")
 async def get_history(
-    session_id: Optional[str] = Query(None, description="Filter by session ID"),
+    session_id: str = Query(None, description="Filter by session ID"),
     limit: int = Query(50, description="Maximum number of messages to return"),
     doc_service: DocumentService = Depends(get_document_service)
 ):
@@ -90,20 +90,22 @@ async def clear_session_history(
             status_code=500,
             detail="An error occurred while clearing chat history"
         )
-
+    
 @router.get("/sessions")
-async def get_sessions(
+async def list_sessions(
     doc_service: DocumentService = Depends(get_document_service)
 ):
     """
-    Get all chat session IDs
+    List all unique session IDs from chat history
     """
+
     try:
         sessions = doc_service.get_all_sessions()
-        return {"sessions": sessions, "total": len(sessions)}
+        print(sessions)
+        return {"sessions": sessions}
     except Exception as e:
         logger.error(e, exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="An error occurred while retrieving sessions"
+            detail="An error occurred while retrieving session IDs"
         )

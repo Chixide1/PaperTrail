@@ -4,6 +4,7 @@ from app.auth.schema import TokenResponse
 from app.core.database import User
 from app.core.exceptions import CredentialsException
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from jwt import decode, PyJWTError # type: ignore
 from app.core.security import (
     ACCESS_TOKEN_EXPIRE_MINUTES, 
@@ -20,7 +21,8 @@ class UserService:
         self.db = db
 
     def get_by_username(self, username: str) -> Optional[User]:
-        return self.db.query(User).filter(User.username == username).first()
+        stmt = select(User).where(User.username == username)
+        return self.db.scalar(stmt)
     
     def create_user(self, username: str, hashedPassword: str) -> bool:
         exists = self.get_by_username(username)
